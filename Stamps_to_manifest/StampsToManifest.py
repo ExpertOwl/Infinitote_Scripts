@@ -27,25 +27,22 @@ from re import search
 # log_level = logging.DEBUG     #This will print a lot
 log_level = logging.INFO        #This is just right 
 # log_level = logging.WARNING   #This will print a little 
-
+logging.basicConfig(format='%(levelname)s: %(message)s', level = log_level, force=True)
 
 
 #Check if python version is compatable. This script relies on ordered dictionaries 
 #Introduced in 3.7
-logging.basicConfig(format='%(levelname)s: %(message)s', level = log_level, force=True)
 if not sys.version_info >= (3, 7):
     logging.critical("StampsToManifest.py requires python 3.7 or later, or orders will be scrambled")
     raise RuntimeError("StampsToManifest.py requires python 3.7 or later, or orders will be scrambled")
     
-#Define some Variables to make the code read nicer 
+#Define some Variables to make the code readable
 #Cols to rename at end
-
-
 rename_cols = {'Tracking #':'Tracking Number',
   'Recipient':'Recipient Full Name'}
 
 states = {"AL":"Alabama","AK":"Alaska","AZ":"Arizona","AR":"Arkansas","CA":"California","CO":"Colorado","CT":"Connecticut","DE":"Delaware","FL":"Florida","GA":"Georgia","HI":"Hawaii","ID":"Idaho","IL":"Illinois","IN":"Indiana","IA":"Iowa","KS":"Kansas","KY":"Kentucky","LA":"Louisiana","ME":"Maine","MD":"Maryland","MA":"Massachusetts","MI":"Michigan","MN":"Minnesota","MS":"Mississippi","MO":"Missouri","MT":"Montana","NE":"Nebraska","NV":"Nevada","NH":"New Hampshire","NJ":"New Jersey","NM":"New Mexico","NY":"New York","NC":"North Carolina","ND":"North Dakota","OH":"Ohio","OK":"Oklahoma","OR":"Oregon","PA":"Pennsylvania","PR":"Puerto Rico","RI":"Rhode Island","SC":"South Carolina","SD":"South Dakota","TN":"Tennessee","TX":"Texas","UT":"Utah","VT":"Vermont","VA":"Virginia","WA":"Washington","WV":"West Virginia","WI":"Wisconsin","WY":"Wyoming"}
-#This list will be the final headers, in order 
+#This list will be the final headers, in order. Don't leading delete spaces for item values. 
 final_col_order = [
       'Order Number',
       'Recipient Full Name',
@@ -97,12 +94,12 @@ recipient_headers = ['Recipient', 'Address 1', "City", "State", "Zip Code", "Cou
 def check_headers(df):
     logging.debug(f'Checking headers for {file}')
     if list(df.keys()) == final_col_order:
-        logging.info(f'Skipping {file}')
+        logging.info(f'skipping {file}')
         return(False)
     try:
         df = df[keep_col].copy()
     except:
-        logging.debug(f'     Incorrect headers for {file}. If {file} is not a stamps output, this is normal. If {file} is a stamps output, the headers may have changed. Adjust the names in keep_col above ' )
+        logging.debug(f'     Incorrect headers for {file}. If {file} is a stamps output, the headers may have changed. Adjust the names in keep_col above ' )
         logging.debug(f'     Skipping {file} \n')
         return(False)
     return(True)
@@ -110,6 +107,7 @@ def check_headers(df):
 def split_adress(order):
     order_adress = order["Recipient"].split(', ')
     logging.debug(f'\tParsing {order_adress}')
+    #ebay adresses aren't standardized enough
     if not order["Recipient"].endswith('US'): 
         name, *adress, city, state_plus_zip = order_adress
         country = 'US'
@@ -118,7 +116,7 @@ def split_adress(order):
          
     state, zip_code = state_plus_zip.split(' ')
     adress  = ' '.join(adress)
-    return(name, adress, city, state, zip_code, country)
+    return(name, adress, city , state, zip_code, country)
  
 def get_value(order):
     item_code = order['Printed Message']
@@ -192,7 +190,7 @@ for file in csv_files:
     high_value = result[' Item 1 Value'] >= flag_value_over 
     no_code = result['Item 1'].isna()
     no_price = result[' Item 1 Value'].isna()
-    no_state = ~result['State'].isin(states) # ~ is the negation operator 
+    no_state = ~result['State'].isin(states)
     
     errors = {'high_value':high_value, 'no_code':no_code, "no_price":no_price, "no_state":no_state}
     #cry wolf
