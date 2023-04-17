@@ -12,15 +12,14 @@ If there are multiple .csv files, this script will try and create a manifest for
 """
 
 #TODO: Add logging function for verbose debugging
-#TODO: Figure out what is wrong with the string thing 
-verbose = False
+#FIXME: Figure out what is wrong with the string thing 
 
+verbose = False
 #imports
 import pandas as pd 
 import sys
 import glob
-import math
-from collections import defaultdict
+import csv
 from re import search
 
 
@@ -38,7 +37,7 @@ flag_value_over = 250
 rename_cols = {'Tracking #':'Tracking Number',
   'Recipient':'Recipient Full Name'}
 
-space = "     "
+states = {"AL":"Alabama","AK":"Alaska","AZ":"Arizona","AR":"Arkansas","CA":"California","CO":"Colorado","CT":"Connecticut","DE":"Delaware","FL":"Florida","GA":"Georgia","HI":"Hawaii","ID":"Idaho","IL":"Illinois","IN":"Indiana","IA":"Iowa","KS":"Kansas","KY":"Kentucky","LA":"Louisiana","ME":"Maine","MD":"Maryland","MA":"Massachusetts","MI":"Michigan","MN":"Minnesota","MS":"Mississippi","MO":"Missouri","MT":"Montana","NE":"Nebraska","NV":"Nevada","NH":"New Hampshire","NJ":"New Jersey","NM":"New Mexico","NY":"New York","NC":"North Carolina","ND":"North Dakota","OH":"Ohio","OK":"Oklahoma","OR":"Oregon","PA":"Pennsylvania","RI":"Rhode Island","SC":"South Carolina","SD":"South Dakota","TN":"Tennessee","TX":"Texas","UT":"Utah","VT":"Vermont","VA":"Virginia","WA":"Washington","WV":"West Virginia","WI":"Wisconsin","WY":"Wyoming"}
 #This list will be the final headers, in order 
 final_col_order = [
       'Order Number',
@@ -111,22 +110,21 @@ def split_adress(order):
         name, *adress, city, state_plus_zip, country = order_adress
          
     state, zip_code = state_plus_zip.split(' ')
-    adress  = ', '.join(adress)
+    adress  = ' '.join(adress)
     return(name, adress, city , state, zip_code, country)
  
 def get_value(order):
     item_code = order['Printed Message']
-    code_exsists = pd.isna(item_code)
+    code_is_nan = pd.isna(item_code)
     code_is_string = type(item_code) == str
     if verbose:
         print(f'\tGetting value for {item_code}')
-    if not code_is_string or not code_exsists:
+    if not code_is_string or code_is_nan:
         return(pd.NA)
-        item_value = search(r'\d*$', item_code).group()
+    item_value = search(r'\d*$', item_code).group()
     if item_value == '':
         return(pd.NA) 
-        item_value = search(r'\d*$', item_code).group()
-        return(float(item_value))
+    return(float(item_value))
         
 def remove_value(order):
     item_code = order['Printed Message']
@@ -139,56 +137,74 @@ def remove_value(order):
         new_code = item_code.strip(str(item_value))
         return(new_code)
 
+def print_warning(pdBool, error_type):
+    orders_with_errors = [index+2 for index, has_error in enumerate(pdBool) if has_error]
+    errors = {"high_value": 
+                  f"\n\n\tWarning: the following lines have value >= {flag_value_over}: \n\t\t{orders_with_errors}\n\t\tDouble Check",
+              "no_code":
+                  f"\n\n\tWarning: the following lines have no printed code: \n\t\t{orders_with_errors}\n\t\tAdd manually",
+              'no_price':
+                  f"\n\n\tWarning: Price not detecteed for the following lines \n\t\t{orders_with_errors}\n\t\tAdd manually",
+              'no_state':f"\n\n\tWarning: Following lines do not have valid US states: \n\t\t{orders_with_errors}\n\t\t"}
+    print(errors[error_type])
+
+def check_tracking_numbers(order):
+    tracking_number = order['Tracking Number']
+    return(tracking_number)
+    # tracking_number = str(order['Tracking Number'])
+    # if type(tracking_number) == str:
+        # tracking_number = ''.join(["=\"",tracking_number,'\"'])
+    # return(tracking_number)
+
 
 csv_files = glob.glob('*.csv')
 for file in csv_files:
     print(f"Working on {file}...\n ")
     file_name = file.split('.')[0]
     output_file = file_name + " Manifest.csv" 
-    stamps_output = pd.read_csv(file, index_col=False) 
+    try:
+        stamps_output = pd.read_csv(file, index_col=False) 
+    except:
+        print("could parse {file}, headers may be wrong. Skipping...")
+        continue
     #check that headers match expected stamps.com output 
-    if not check_headers(stamps_output) == True:
+    if not check_headers(stamps_output):
         continue
     ##Pull values from item codes
-    if verbose:
-        print('Getting Values from codes...')
     stamps_output[' Item 1 Value'] = stamps_output.apply(get_value, axis = 1)
-    if verbose:
-        print('Getting Values from codes...')
     stamps_output['Item 1'] = stamps_output.apply(remove_value, axis = 1)
     #Parse Adresses  
-    if verbose:
-        print('Parsing Adresses...')
     new_addresses = stamps_output.apply(split_adress, axis = 1, result_type = 'expand')
     new_addresses.columns = recipient_headers
     stamps_output = stamps_output.drop(columns='Recipient')
     frames = [new_addresses, stamps_output]
 
     result = pd.concat(frames, axis=1)
-    if verbose: 
-        print('getting weights...')
     result['Weight'] = result['Weight'].str.split('lb', n=1,expand=True)[0].astype(int) +1
     
     #Rename some headers to CBP headers
-    if verbose: 
-        print('renaming cols to match CBP...')
     result = result.rename(rename_cols, axis = 1)
     result  = result.reindex(columns = final_col_order, fill_value = '')
     result['Lettermail?'] = 'N'
     result['Item 1 Qty'] = 1
     result['Item 1 Origin Country'] = 'US'   
+            # result['Tracking Number'] = result.apply(check_tracking_numbers, axis = 1)
+    result['Tracking Number'] = '="'+result["Tracking Number"]+'"' 
+    #Find misbehaving orders
+    high_value = result[' Item 1 Value'] >= flag_value_over 
+    no_code = result['Item 1'].isna()
+    no_price = result[' Item 1 Value'].isna()
+    no_state = ~result['State'].isin(states)
+    # no_state = [bool(x) for x in result["State"] if not x in states]
     
-    high_value_shipments = result[' Item 1 Value'] >= flag_value_over 
-    no_code_shipments = result['Item 1'].isna()
-    
-    if high_value_shipments.any(): 
-        hvs = [index+2 for index, is_overpriced in enumerate(high_value_shipments) if is_overpriced]
-        print(f"\n\n\tWarning: the following lines have value >= {flag_value_over}: \n\t\t{hvs}\n\t\tDouble Check")
-    if no_code_shipments.any(): 
-        ncs = [index+2 for index, missing_code in enumerate(no_code_shipments) if missing_code]
-        print(f"\n\n\tWarning: the following lines have no printed code or price : \n\t\t{ncs}\n\t\tAdd manually")
+    errors = {'high_value':high_value, 'no_code':no_code, "no_price":no_price, "no_state":no_state}
+    #cry wolf
+    for error_type, orders_with_problems in errors.items():
+        if orders_with_problems.any():
+            print_warning(orders_with_problems, error_type)
+
     try:   
-        result.to_csv(output_file, index=False)
+        result.to_csv(output_file, index=False, quoting=csv.QUOTE_MINIMAL)
     except PermissionError:
         raise PermissionError('Could not write to csv file. If the file open in excel, close it. Then open after running script \n')
 
