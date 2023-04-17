@@ -10,6 +10,9 @@ Converts stamps.com output to crossborder manifest.
 Instructions: Export csv file from stamps and put that file in the same directory as this script. Running the script will create a new csv file with a similar name as the stamps file. The name does not matter as long as it is a .csv file
 If there are multiple .csv files, this script will try and create a manifest for each.  
 """
+
+#TODO: Add logging function for verbose debugging
+#TODO: Figure out what is wrong with the string thing 
 verbose = False
 
 #imports
@@ -179,10 +182,10 @@ for file in csv_files:
     no_code_shipments = result['Item 1'].isna()
     
     if high_value_shipments.any(): 
-        hvs = [i+2 for i, x in enumerate(high_value_shipments) if x]
+        hvs = [index+2 for index, is_overpriced in enumerate(high_value_shipments) if is_overpriced]
         print(f"\n\n\tWarning: the following lines have value >= {flag_value_over}: \n\t\t{hvs}\n\t\tDouble Check")
     if no_code_shipments.any(): 
-        ncs = [i+2 for i, x in enumerate(no_code_shipments) if x]
+        ncs = [index+2 for index, missing_code in enumerate(no_code_shipments) if missing_code]
         print(f"\n\n\tWarning: the following lines have no printed code or price : \n\t\t{ncs}\n\t\tAdd manually")
     try:   
         result.to_csv(output_file, index=False)
