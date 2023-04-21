@@ -9,16 +9,7 @@ Filters ebay listings based on specific criteria, used to generate sales.
 
 Instructions: Export csv file from ebay and put that file in the same directory as this script.
 Running the script will create a new csv and will pull out all rows with skus matching this criteria:
-    sku does not contain GAME
-    AND...
-    Starts with U- 
-    OR
-    Starts with N- 
-    OR
-    Date code < pull_before (set below)
-    OR
-    No/invalid date code
-    can add or remove masks to the ors list or ands list to change what is pulled
+
     
 """
 
@@ -29,13 +20,19 @@ import re
 import functools
 import pandas as pd 
 
+# make script ignore csv files correctly. 
 
-pull_before = 2240
+pull_before = 2252
+pull_after = 2240
+pull_invalid_date_codes = False
+pull_u = False
+pull_n = False
+pull_listings_in_date_range = True
+exclude_games = True
 
 #Can chose logging verbosity below:
 log_level = logging.INFO        #This is just right 
 logging.basicConfig(format='%(levelname)s: %(message)s', level = log_level, force=True)
-
 
 csv_files = glob.glob('*.csv')
 for file in csv_files:
@@ -44,6 +41,8 @@ for file in csv_files:
     if filename.endswith('filtered'):
         logging.info(f"{file} ends with _filtered. Skipping {file}")
         continue
+    ors = []
+    ands = []
     all_listings = pd.read_csv(file)
 
     outfile = f'{filename}_filtered.csv'
@@ -54,22 +53,35 @@ for file in csv_files:
     #masks to be OR-d
     starts_with_u = skus.str.contains("^U-")
     starts_with_n = skus.str.contains("^N-")
-    is_old_or_invalid = datecodes_as_int < pull_before
-    ors = [starts_with_u,
-           starts_with_n,
-           is_old_or_invalid,
-           ]
+    is_in_date_range = (datecodes_as_int < pull_before) & (datecodes_as_int >= pull_after) 
+    is_valid = datecodes_as_int != 0 
+    
+    if pull_u:
+        ors.append(starts_with_u)
+    if pull_n:
+        ors.append(starts_with_n)
+    if pull_listings_in_date_range:
+        ors.append(is_in_date_range)
+    if pull_invalid_date_codes:
+        ors.append(~is_valid)
+        
     #masks to be And-ed
     is_not_game = ~skus.str.contains(re.compile(".*GAME.*"))
-    ands = [is_not_game,
-            ]
+    
+    if exclude_games: 
+        ands.append(is_not_game)
     
     #Bool ors
-    export = functools.reduce(lambda x,y: x | y, ors)
-    #Bool result with ands list
-    export = export & functools.reduce(lambda x,y: x & y, ands)
-    
-    logging.info(f"Filtered {export.value_counts()[True]} out of {len(all_listings)} listings")
+    if ors:
+        export = functools.reduce(lambda x,y: x | y, ors)
+    if ands: #Bool result with ands list
+        export = export & functools.reduce(lambda x,y: x & y, ands)
+        
+    if not True in export.value_counts():
+        num_exports = 0 
+    else: 
+        num_exports = export.value_counts()[True]
+    logging.info(f"Filtered {num_exports} out of {len(all_listings)} listings")
     #build final df
     rows_with_matching_skus = all_listings[export]
     
