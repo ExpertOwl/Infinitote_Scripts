@@ -23,8 +23,6 @@ def make_sku():
 def ft(string):
     formatted_string = string.split(', ')
     print("\n".join(formatted_string))
-    
-    
 sku = make_sku()
 clipboard(sku)
 print(f'\n {sku} copied to clipboard')
