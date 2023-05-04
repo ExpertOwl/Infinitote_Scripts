@@ -167,7 +167,7 @@ for file in csv_files:
         continue
     ##Pull values from item codes
     stamps_output[' Item 1 Value'] = stamps_output.apply(get_value, axis = 1)
-    stamps_output['Item 1'] = stamps_output.apply(remove_value, axis = 1)
+    stamps_output['Item 1'] = "USED-" + stamps_output.apply(remove_value, axis = 1)
     #Parse Adresses  
     new_addresses = stamps_output.apply(split_adress, axis = 1, result_type = 'expand')
     new_addresses.columns = recipient_headers
