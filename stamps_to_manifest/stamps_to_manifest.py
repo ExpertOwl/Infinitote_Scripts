@@ -167,7 +167,7 @@ for file in csv_files:
         continue
     ##Pull values from item codes
     stamps_output[' Item 1 Value'] = stamps_output.apply(get_value, axis = 1)
-    stamps_output['Item 1'] = stamps_output.apply(remove_value, axis = 1)
+    stamps_output['Item 1'] = "USED-" + stamps_output.apply(remove_value, axis = 1)
     #Parse Adresses  
     new_addresses = stamps_output.apply(split_adress, axis = 1, result_type = 'expand')
     new_addresses.columns = recipient_headers
@@ -183,6 +183,10 @@ for file in csv_files:
     result['Lettermail?'] = 'N'
     result['Item 1 Qty'] = 1
     result['Item 1 Origin Country'] = 'US'   
+    #Excel likes to format tracking numbers in scientific notion. There isn't 
+    #anything I can do about it if the data is already bad when we read it in.
+    #But forcing them to be strings will at least prevent program from crashing 
+    result['Tracking Number'] = result['Tracking Number'].astype(str)
     if not result['Tracking Number'].str.contains('=').any():
         result['Tracking Number'] = '="'+result["Tracking Number"]+'"' 
         
