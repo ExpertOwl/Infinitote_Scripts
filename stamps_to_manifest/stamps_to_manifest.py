@@ -10,7 +10,7 @@ Converts stamps.com output to crossborderpickups manifest.
 Instructions: Export csv file from stamps and put that file in the same directory as this script. Running the script will create a new csv file with a similar name as the stamps file. The name does not matter as long as it is a .csv file
 If there are multiple .csv files, this script will try and create a manifest for each.  
 """
-
+#goodbye
 flag_value_over = 250
 
 # TODO: Add logging function for trace debugging
