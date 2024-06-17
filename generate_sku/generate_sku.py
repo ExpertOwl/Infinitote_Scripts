@@ -10,6 +10,7 @@ Purpose:
 from random import choice as choose_one_from
 from datetime import date
 
+# I'm the king of the rumba beat
 valid_letters = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
 valid_numbers = list('0123456789')
 
